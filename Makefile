@@ -8,7 +8,7 @@ VER_PATCH=0
 
 DEFINES=VERSION_STR=\"$(VER_MAJOR).$(VER_MINOR).$(VER_PATCH)\"
 
-COMMON_FLAGS=-std=c11 -Wall -Wpedantic
+COMMON_FLAGS=-std=gnu11 -Wall -Wpedantic
 C_FLAGS=$(COMMON_FLAGS) $(addprefix -D, $(DEFINES)) -c
 L_FLAGS=$(COMMON_FLAGS)
 

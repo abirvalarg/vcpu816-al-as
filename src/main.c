@@ -18,9 +18,66 @@ typedef struct AsmState
 } AsmState;
 
 static const char *const DEFAULT_OUTPUT = "vcpu816-al.o";
+static const unsigned INIT_BUF_CAPACITY = 64;
 
 static void print_help(FILE *fp, const char *exec);
 static int process_file(AsmState *state, const char *path);
+static int process_line(AsmState *state, const char *line);
+
+static int process_line(AsmState *state, const char *line)
+{
+    printf("line: %s\n", line);
+    return 0;
+}
+
+static int process_file(AsmState *state, const char *path)
+{
+    FILE *fp = fopen(path, "r");
+    if(fp)
+    {
+        char *buf = malloc(INIT_BUF_CAPACITY);
+        unsigned buf_capacity = INIT_BUF_CAPACITY;
+        unsigned buf_pos = 0;
+
+        while(!feof(fp))
+        {
+            char ch = fgetc(fp);
+            if(ch == '\n')
+            {
+                buf[buf_pos] = 0;
+                int code = process_line(state, buf);
+                if(code)
+                {
+                    fclose(fp);
+                    return code;
+                }
+                buf_pos = 0;
+            }
+            else
+            {
+                if(buf_pos == buf_capacity - 1)
+                {
+                    unsigned new_cap = buf_capacity * 2;
+                    char *new_buf = malloc(new_cap);
+                    memcpy(new_buf, buf, buf_pos);
+                    free(buf);
+                    buf = new_buf;
+                    buf_capacity = new_cap;
+                }
+                buf[buf_pos++] = ch;
+            }
+        }
+
+        free(buf);
+        fclose(fp);
+        return 0;
+    }
+    else
+    {
+        fprintf(stderr, "can't open file %s\n", path);
+        return 1;
+    }
+}
 
 int main(int argc, const char *const *argv)
 {
@@ -143,7 +200,10 @@ int main(int argc, const char *const *argv)
                     break;
             }
 
-            fprintf(stderr, "Output is not implemented yet\n");
+            if(exit_code == 0)
+            {
+                fprintf(stderr, "Output is not implemented yet\n");
+            }
 
             AlObj_cleanup(&state.obj);
         }
