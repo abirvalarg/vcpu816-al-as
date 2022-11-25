@@ -2,7 +2,9 @@
 #include <stdlib.h>
 #include <malloc.h>
 #include <string.h>
+#include <ctype.h>
 #include "al_obj.h"
+#include "misc.h"
 
 typedef enum NextToken
 {
@@ -15,6 +17,8 @@ typedef struct AsmState
 {
     AlObj obj;
     AlSection *section;
+    const char *path;
+    unsigned line;
 } AsmState;
 
 static const char *const DEFAULT_OUTPUT = "vcpu816-al.o";
@@ -26,7 +30,69 @@ static int process_line(AsmState *state, const char *line);
 
 static int process_line(AsmState *state, const char *line)
 {
-    printf("line: %s\n", line);
+    char *buffer = malloc(strlen(line) + 1);
+    if(!buffer)
+        out_of_memory();
+    size_t buffer_pos = 0;
+    size_t last_char = 0;
+
+    char ch;
+    while((ch = *(line++)))
+    {
+        if(ch == ':')
+        {
+            buffer[buffer_pos] = 0;
+            if(state->section)
+                AlSection_set_label(state->section, buffer);
+            else
+            {
+                fprintf(stderr, "%s:%u: no section is declared\n", state->path, state->line);
+                free(buffer);
+                return 1;
+            }
+            buffer_pos = 0;
+        }
+        else if(ch == ';')
+            break;
+        else if(!(buffer_pos == 0 && isspace(ch)))
+        {
+            buffer[buffer_pos++] = ch;
+            if(!isspace(ch))
+                last_char = buffer_pos - 1;
+        }
+    }
+    size_t len = size_t_min(last_char + 1, buffer_pos);
+    buffer[len] = 0;
+    if(buffer[0])
+    {
+        const char *opcode = buffer;
+        const char *args = 0;
+        for(size_t i = 0; i < len; i++)
+        {
+            if(isspace(buffer[i]))
+            {
+                buffer[i] = 0;
+                args = &buffer[i + 1];
+                break;
+            }
+        }
+    
+        printf("opcode: %s\nargs: \"%s\"\n", opcode, args);
+        if(opcode[0] == '.')
+        {
+            if(!strcmp(opcode, ".section"))
+            {
+                state->section = AlObj_add_section(&state->obj, args);
+                if(!state->section)
+                {
+                    free(buffer);
+                    return 1;
+                }
+            }
+        }
+    }
+
+    free(buffer);
     return 0;
 }
 
@@ -35,7 +101,10 @@ static int process_file(AsmState *state, const char *path)
     FILE *fp = fopen(path, "r");
     if(fp)
     {
+        state->path = path;
         char *buf = malloc(INIT_BUF_CAPACITY);
+        if(!buf)
+            out_of_memory();
         unsigned buf_capacity = INIT_BUF_CAPACITY;
         unsigned buf_pos = 0;
 
@@ -45,6 +114,7 @@ static int process_file(AsmState *state, const char *path)
             if(ch == '\n')
             {
                 buf[buf_pos] = 0;
+                state->line++;
                 int code = process_line(state, buf);
                 if(code)
                 {
@@ -59,6 +129,8 @@ static int process_file(AsmState *state, const char *path)
                 {
                     unsigned new_cap = buf_capacity * 2;
                     char *new_buf = malloc(new_cap);
+                    if(!new_buf)
+                        out_of_memory();
                     memcpy(new_buf, buf, buf_pos);
                     free(buf);
                     buf = new_buf;
@@ -118,6 +190,8 @@ int main(int argc, const char *const *argv)
                         exit(1);
                     }
                     const char **new_input = malloc(sizeof(char*) * new_cap);
+                    if(!new_input)
+                        out_of_memory();
                     memcpy(new_input, input, sizeof(char*) * input_count);
                     free(input);
                     input = new_input;
@@ -137,6 +211,8 @@ int main(int argc, const char *const *argv)
                     exit(1);
                 }
                 const char **new_input = malloc(sizeof(char*) * new_cap);
+                if(!new_input)
+                    out_of_memory();
                 memcpy(new_input, input, sizeof(char*) * input_count);
                 free(input);
                 input = new_input;
@@ -190,7 +266,8 @@ int main(int argc, const char *const *argv)
                     .sections = malloc(sizeof(AlSectionEntry)),
                     .sections_capacity = 1
                 },
-                .section = 0
+                .section = 0,
+                .line = 0
             };
 
             for(unsigned inp_id = 0; inp_id < input_count; inp_id++)

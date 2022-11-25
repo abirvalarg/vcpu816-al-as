@@ -34,6 +34,10 @@ typedef struct AlSection
     u16 capacity;
 } AlSection;
 
+u8 AlSection_symbol_exists(AlSection *section, const char *name);
+u8 AlSection_set_label(AlSection *section, const char *name);
+u8 AlSection_set_symbol_val(AlSection *section, const char *name, u16 value);
+
 typedef struct AlSectionEntry
 {
     char *name;
@@ -50,3 +54,4 @@ typedef struct AlObj
 } AlObj;
 
 void AlObj_cleanup(AlObj *self);
+AlSection *AlObj_add_section(AlObj *self, const char *name);
