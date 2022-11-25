@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <malloc.h>
 #include <string.h>
+#include "al_obj.h"
 
 typedef enum NextToken
 {
@@ -10,9 +11,16 @@ typedef enum NextToken
     NT_OUTPUT
 } NextToken;
 
+typedef struct AsmState
+{
+    AlObj obj;
+    AlSection *section;
+} AsmState;
+
 static const char *const DEFAULT_OUTPUT = "vcpu816-al.o";
 
 static void print_help(FILE *fp, const char *exec);
+static int process_file(AsmState *state, const char *path);
 
 int main(int argc, const char *const *argv)
 {
@@ -117,10 +125,27 @@ int main(int argc, const char *const *argv)
     {
         if(input_count)
         {
-            printf("input files:\n");
-            for(unsigned i = 0; i < input_count; i++)
-                printf("\t%s\n", input[i]);
-            printf("output: %s\n", output);
+            AsmState state = {
+                .obj = {
+                    .title = {0x7f, 0x41, 0x31, 0x36},
+                    .version = 0,
+                    .num_sections = 0,
+                    .sections = malloc(sizeof(AlSectionEntry)),
+                    .sections_capacity = 1
+                },
+                .section = 0
+            };
+
+            for(unsigned inp_id = 0; inp_id < input_count; inp_id++)
+            {
+                exit_code = process_file(&state, input[inp_id]);
+                if(exit_code)
+                    break;
+            }
+
+            fprintf(stderr, "Output is not implemented yet\n");
+
+            AlObj_cleanup(&state.obj);
         }
         else
         {
