@@ -22,8 +22,8 @@ typedef struct ParserResult
 } ParserResult;
 
 ParserResult parse_args(
-    const char *const *global_names,
-    u16 *global_vals,
+    char **global_names,
+    const u16 *global_vals,
     unsigned num_globals,
     const char *src
 );

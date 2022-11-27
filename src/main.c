@@ -4,6 +4,7 @@
 #include <string.h>
 #include <ctype.h>
 #include "al_obj.h"
+#include "args_parser.h"
 #include "misc.h"
 
 typedef enum NextToken
@@ -96,6 +97,38 @@ static int process_line(AsmState *state, const char *line)
                     return 1;
                 }
             }
+            if(!strcmp(opcode, ".equ"))
+            {
+                ParserResult res = parse_args(state->global_names, state->global_values, state->num_globals, args);
+                switch(res.status)
+                {
+                case PS_OK:
+                    if(res.num_args == 2 && res.args[0].label && res.args[0].offset == 0 && res.args[1].label == 0)
+                    {
+                        set_global(state, res.args[0].label, res.args[1].offset);
+                        free(res.args[0].label);
+                        free(res.args);
+                    }
+                    else
+                    {
+                        fprintf(stderr, "Syntax error at %s:%u\n", state->path, state->line);
+                        for(unsigned arg = 0; arg < res.num_args; arg++)
+                            if(res.args[arg].label)
+                                free(res.args[arg].label);
+                        free(res.args);
+                        return 1;
+                    }
+                    break;
+                
+                case PS_ERR_SYNTAX:
+                    fprintf(stderr, "Syntax error at %s:%u\n", state->path, state->line);
+                    return 1;
+                
+                case PS_ERR_BAD_ARITH:
+                    fprintf(stderr, "Bad expression at %s:%u\n", state->path, state->line);
+                    return 1;
+                }
+            }
         }
     }
 
@@ -156,6 +189,33 @@ static int process_file(AsmState *state, const char *path)
         fprintf(stderr, "can't open file %s\n", path);
         return 1;
     }
+}
+
+static void set_global(AsmState *state, const char *name, u16 value)
+{
+    if(state->num_globals == state->globals_cap)
+    {
+        unsigned new_cap = state->globals_cap * 2;
+        char **new_names = malloc(sizeof(char*) * new_cap);
+        if(!new_names)
+            out_of_memory();
+        u16 *new_vals = malloc(sizeof(u16) * new_cap);
+        if(!new_vals)
+            out_of_memory();
+        memcpy(new_names, state->global_names, sizeof(char*) * state->num_globals);
+        memcpy(new_vals, state->global_values, sizeof(u16) * state->num_globals);
+        free(state->global_names);
+        state->global_names = new_names;
+        free(state->global_values);
+        state->global_values = new_vals;
+    }
+    char *name_container = malloc(strlen(name) + 1);
+    if(!name_container)
+        out_of_memory();
+    strcpy(name_container, name);
+    state->global_names[state->num_globals] = name_container;
+    state->global_values[state->num_globals] = value;
+    state->num_globals++;
 }
 
 int main(int argc, const char *const *argv)

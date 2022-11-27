@@ -12,8 +12,8 @@ typedef struct ParserState
     char *token;
     size_t token_len;
     size_t token_capacity;
-    const char *const *global_names;
-    u16 *global_vals;
+    char **global_names;
+    const u16 *global_vals;
     enum {
         TOK_NONE,
         TOK_IDENT,
@@ -43,8 +43,8 @@ static ParserStatus next_token(ParserState *state);
 static void append_token_from_src(ParserState *state);
 
 ParserResult parse_args(
-    const char *const *global_names,
-    u16 *global_vals,
+    char **global_names,
+    const u16 *global_vals,
     unsigned num_globals,
     const char *src
 )
@@ -401,7 +401,7 @@ static SubparserResult parse_sum_expr(ParserState *state)
 
 static SubparserResult parse_mul_expr(ParserState *state)
 {
-    SubparserResult res = parse_sum_expr(state);
+    SubparserResult res = parse_neg_expr(state);
     if(res.status != PS_OK)
         return res;
     Arg value = res.result;
@@ -430,7 +430,7 @@ static SubparserResult parse_mul_expr(ParserState *state)
                 }
             };
         }
-        SubparserResult rhs_res = parse_sum_expr(state);
+        SubparserResult rhs_res = parse_neg_expr(state);
         if(rhs_res.status != PS_OK)
             return rhs_res;
         if(rhs_res.result.label)
@@ -478,7 +478,7 @@ static SubparserResult parse_neg_expr(ParserState *state)
     SubparserResult res = parse_atom(state);
     if(res.status != PS_OK)
         return res;
-    if(res.result.label)
+    if(op && res.result.label)
     {
         free(res.result.label);
         return (SubparserResult){
@@ -504,6 +504,17 @@ static SubparserResult parse_atom(ParserState *state)
         {
             if(!strcmp(state->global_names[i], state->token))
             {
+                ParserStatus st = next_token(state);
+                if(st != PS_OK)
+                {
+                    return (SubparserResult){
+                        .status = st,
+                        .result = {
+                            .label = 0,
+                            .offset = 0
+                        }
+                    };
+                }
                 return (SubparserResult){
                     .status = PS_OK,
                     .result = {
@@ -516,6 +527,18 @@ static SubparserResult parse_atom(ParserState *state)
 
         char *label = malloc(state->token_len + 1);
         strcpy(label, state->token);
+        ParserStatus st = next_token(state);
+        if(st != PS_OK)
+        {
+            free(label);
+            return (SubparserResult){
+                .status = st,
+                .result = {
+                    .label = 0,
+                    .offset = 0
+                }
+            };
+        }
         return (SubparserResult){
             .status = PS_OK,
             .result = {
@@ -562,11 +585,11 @@ static SubparserResult parse_atom(ParserState *state)
                     break;
                 
                 case 10:
-                    digit_good = isdigit(ch);
+                    digit_good = !!isdigit(ch);
                     break;
                 
                 case 16:
-                    digit_good = isxdigit(ch);
+                    digit_good = !!isxdigit(ch);
                     break;
                 }
                 if(digit_good)
@@ -575,7 +598,7 @@ static SubparserResult parse_atom(ParserState *state)
                     if(ch <= '9')
                         res += ch - '0';
                     else
-                        res += (ch | ' ') - 'a';
+                        res += (ch | ' ') - 'a' + 10;
                 }
                 else
                 {
@@ -588,6 +611,17 @@ static SubparserResult parse_atom(ParserState *state)
                     };
                 }
             }
+        }
+        ParserStatus st = next_token(state);
+        if(st != PS_OK)
+        {
+            return (SubparserResult){
+                .status = st,
+                .result = {
+                    .label = 0,
+                    .offset = 0
+                }
+            };
         }
         return (SubparserResult){
             .status = PS_OK,
@@ -657,6 +691,7 @@ static ParserStatus next_token(ParserState *state)
         state->src++;
     
     state->token[0] = 0;
+    state->token_len = 0;
     if(!state->src[0])
         state->token_kind = TOK_NONE;
     else if(isdigit(state->src[0]))
@@ -678,6 +713,7 @@ static ParserStatus next_token(ParserState *state)
     }
     else
     {
+        state->token_kind = TOK_OP;
         append_token_from_src(state);
         if((state->token[0] == '<' || state->token[0] == '>') && state->src[0] == state->token[0])
             append_token_from_src(state);
