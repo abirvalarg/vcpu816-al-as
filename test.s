@@ -1,5 +1,4 @@
-.section globals
-.equ io_mem, 0xf800 ; address of IO memory region
+.equ io_mem, 0xf8_00    ; address of IO memory region
 .equ ndisp_base, io_mem + 8
 .equ ndisp_d7, ndisp_base + 7   ; address of the last digit display register
 
@@ -9,12 +8,12 @@
 
 .section text/start
 start:
-    nop
+    nop             ; 0x00
     ldi 1           ; 0x01 0x01
     addi 3          ; 0x50 0x03
     sta ndisp_d7    ; 0x03 0x0f 0xf8
     jmp halt
 
-.section text/halt
+.section    text/halt   
 halt:
     jmp halt      ; 0x04 0xfd 0xff

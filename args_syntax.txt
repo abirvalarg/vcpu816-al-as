@@ -1,0 +1,11 @@
+args ::= [ expr { `,` expr } ]
+
+expr ::= or_expr
+or_expr ::= xor_expr { `|` xor_expr }
+xor_expr ::= and_expr { `^` and_expr }
+and_expr ::= shift_expr { `&` shift_expr }
+shift_expr ::= sum_expr { (`<<`|`>>`) sum_expr }
+sum_expr ::= mul_expr { (`+`|`-`) mul_expr }
+mul_expr ::= neg_expr { (`*`|`/`|`%`) neg_expr }
+neg_expr ::= [`-`|`!`] atom
+atom ::= ident | `(` expr `)` | number | reg

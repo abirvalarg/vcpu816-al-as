@@ -18,6 +18,10 @@ typedef struct AsmState
     AlObj obj;
     AlSection *section;
     const char *path;
+    char **global_names;
+    u16 *global_values;
+    unsigned num_globals;
+    unsigned globals_cap;
     unsigned line;
 } AsmState;
 
@@ -27,6 +31,7 @@ static const unsigned INIT_BUF_CAPACITY = 64;
 static void print_help(FILE *fp, const char *exec);
 static int process_file(AsmState *state, const char *path);
 static int process_line(AsmState *state, const char *line);
+static void set_global(AsmState *state, const char *name, u16 value);
 
 static int process_line(AsmState *state, const char *line)
 {
@@ -73,10 +78,12 @@ static int process_line(AsmState *state, const char *line)
             {
                 buffer[i] = 0;
                 args = &buffer[i + 1];
+                while(isspace(args[0]))
+                    args++;
                 break;
             }
         }
-    
+
         printf("opcode: %s\nargs: \"%s\"\n", opcode, args);
         if(opcode[0] == '.')
         {
@@ -264,9 +271,14 @@ int main(int argc, const char *const *argv)
                     .version = 0,
                     .num_sections = 0,
                     .sections = malloc(sizeof(AlSectionEntry)),
-                    .sections_capacity = 1
+                    .sections_capacity = 1,
                 },
                 .section = 0,
+                .path = 0,
+                .global_names = 0,
+                .global_values = 0,
+                .num_globals = 0,
+                .globals_cap = 0,
                 .line = 0
             };
 
