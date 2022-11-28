@@ -5,6 +5,7 @@
 #include "misc.h"
 
 static const u16 INIT_SECTION_CAPACITY = 64;
+const char ARCH[8] = {'V', 'C', 'P', 'U', '8', '1', '6', ' '};
 
 void AlObj_cleanup(AlObj *self)
 {
@@ -53,7 +54,7 @@ u8 AlSection_set_label(AlSection *section, const char *name)
             fprintf(stderr, "too many symbols\n");
             return 0;
         }
-        u16 new_cap = section->sym_capacity * 2;
+        u16 new_cap = section->sym_capacity ? section->sym_capacity * 2 : 1;
         if(new_cap < section->sym_capacity)
             new_cap = 0xffff;
         AlSymbol *new_syms = malloc(sizeof(AlSymbol) * new_cap);
@@ -156,4 +157,106 @@ u8 AlSection_set_reloc(AlSection *section, u16 position, const char *symbol, AlR
         .symbol = sym_buf
     };
     return 1;
+}
+
+void AlObj_write(AlObj *self, FILE *fp)
+{
+    // title
+    for(int i = 0; i < 4; i++)
+        fputc(self->title[i], fp);
+    
+    // version
+    fputc(0, fp);
+    fputc(0, fp);
+
+    // num_sections
+    fputc(self->num_sections & 0xff, fp);
+    fputc(self->num_sections >> 8, fp);
+
+    // arch
+    for(int i = 0; i < 8; i++)
+        fputc(ARCH[i], fp);
+    
+    size_t pos = 16 + self->num_sections * 9;
+    for(unsigned i = 0; i < self->num_sections; i++)
+        pos += strlen(self->sections[i].name);
+    
+    // section list
+    for(unsigned s = 0; s < self->num_sections; s++)
+    {
+        AlSection *sect = self->sections[s].section;
+
+        fputc(pos & 0xff, fp);
+        fputc((pos >> 8) & 0xff, fp);
+        fputc((pos >> 16) & 0xff, fp);
+        fputc((pos >> 24) & 0xff, fp);
+
+        u32 sect_len = 6 + sect->num_sym * 3 + sect->num_reloc * 4 + sect->len;
+        for(unsigned i = 0; i < sect->num_sym; i++)
+            sect_len += strlen(sect->symbols[i].name);
+        for(unsigned i = 0; i < sect->num_reloc; i++)
+            sect_len += strlen(sect->reloc[i].symbol);
+
+        fputc(sect_len & 0xff, fp);
+        fputc((sect_len >> 8) & 0xff, fp);
+        fputc((sect_len >> 16) & 0xff, fp);
+        fputc((sect_len >> 24) & 0xff, fp);
+
+        const char *name = self->sections[s].name;
+        while(*name)
+        {
+            fputc(*name, fp);
+            name++;
+        }
+        fputc(0, fp);
+
+        pos += sect_len;
+    }
+
+    for(unsigned s = 0; s < self->num_sections; s++)
+    {
+        AlSection *sect = self->sections[s].section;
+
+        fputc(sect->num_sym & 0xff, fp);
+        fputc(sect->num_sym >> 8, fp);
+
+        fputc(sect->num_reloc & 0xff, fp);
+        fputc(sect->num_reloc >> 8, fp);
+
+        fputc(sect->len & 0xff, fp);
+        fputc(sect->len >> 8, fp);
+
+        for(unsigned i = 0; i < sect->num_sym; i++)
+        {
+            fputc(sect->symbols[i].value & 0xff, fp);
+            fputc(sect->symbols[i].value >> 8, fp);
+
+            const char *name = sect->symbols[i].name;
+            while(*name)
+            {
+                fputc(*name, fp);
+                name++;
+            }
+            fputc(0, fp);
+        }
+
+        for(unsigned i = 0; i < sect->num_reloc; i++)
+        {
+            fputc(sect->reloc[i].offset & 0xff, fp);
+            fputc(sect->reloc[i].offset >> 8, fp);
+
+            fputc(sect->reloc[i].kind, fp);
+
+            const char *name = sect->reloc[i].symbol;
+            while(*name)
+            {
+                fputc(*name, fp);
+                name++;
+            }
+            fputc(0, fp);
+        }
+
+        for(unsigned i = 0; i < sect->len; i++)
+            fputc(sect->data[i], fp);
+    }
 }

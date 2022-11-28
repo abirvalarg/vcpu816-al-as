@@ -1,5 +1,6 @@
 #pragma once
 #include "types.h"
+#include <stdio.h>
 
 typedef enum AlRelocKind
 {
@@ -56,3 +57,4 @@ typedef struct AlObj
 
 void AlObj_cleanup(AlObj *self);
 AlSection *AlObj_add_section(AlObj *self, const char *name);
+void AlObj_write(AlObj *self, FILE *fp);

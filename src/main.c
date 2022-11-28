@@ -455,7 +455,17 @@ int main(int argc, const char *const *argv)
 
             if(exit_code == 0)
             {
-                fprintf(stderr, "Output is not implemented yet\n");
+                FILE *output_fp = fopen(output, "wb");
+                if(output_fp)
+                {
+                    AlObj_write(&state.obj, output_fp);
+                    fclose(output_fp);
+                }
+                else
+                {
+                    fprintf(stderr, "Failed to open output file\n");
+                    exit_code = 1;
+                }
             }
 
             AlObj_cleanup(&state.obj);
