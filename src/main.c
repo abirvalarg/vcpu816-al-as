@@ -85,7 +85,6 @@ static int process_line(AsmState *state, const char *line)
             }
         }
 
-        printf("opcode: %s\nargs: \"%s\"\n", opcode, args);
         if(opcode[0] == '.')
         {
             if(!strcmp(opcode, ".section"))
@@ -97,7 +96,7 @@ static int process_line(AsmState *state, const char *line)
                     return 1;
                 }
             }
-            if(!strcmp(opcode, ".equ"))
+            else if(!strcmp(opcode, ".equ"))
             {
                 ParserResult res = parse_args(state->global_names, state->global_values, state->num_globals, args);
                 switch(res.status)
@@ -111,23 +110,128 @@ static int process_line(AsmState *state, const char *line)
                     }
                     else
                     {
-                        fprintf(stderr, "Syntax error at %s:%u\n", state->path, state->line);
+                        if(res.num_args == 2 && !res.args[0].label)
+                            fprintf(stderr, "Error at %s:%u: syntax error or symbol is already defined\n", state->path, state->line);
+                        else
+                            fprintf(stderr, "Syntax error at %s:%u\n", state->path, state->line);
                         for(unsigned arg = 0; arg < res.num_args; arg++)
                             if(res.args[arg].label)
                                 free(res.args[arg].label);
                         free(res.args);
+                        free(buffer);
                         return 1;
                     }
                     break;
                 
                 case PS_ERR_SYNTAX:
                     fprintf(stderr, "Syntax error at %s:%u\n", state->path, state->line);
+                    free(buffer);
                     return 1;
                 
                 case PS_ERR_BAD_ARITH:
                     fprintf(stderr, "Bad expression at %s:%u\n", state->path, state->line);
+                    free(buffer);
                     return 1;
                 }
+            }
+            else if(!strcmp(opcode, ".byte"))
+            {
+                if(state->section)
+                {
+                    ParserResult res = parse_args(state->global_names, state->global_values, state->num_globals, args);
+                    switch(res.status)
+                    {
+                    case PS_OK:
+                        for(unsigned i = 0; i < res.num_args; i++)
+                        {
+                            if(res.args[i].label)
+                            {
+                                if(!AlSection_set_reloc(state->section, state->section->len, res.args[i].label, AL_RELOC_BYTE))
+                                {
+                                    fprintf(stderr, "%s:%u: Too many relocations in section\n", state->path, state->line);;
+                                    return 1;
+                                }
+                                free(res.args[i].label);
+                            }
+                            if(!AlSection_append(state->section, res.args[i].offset & 0xff))
+                            {
+                                fprintf(stderr, "%s:%u: Section is too long\n", state->path, state->line);
+                                return 1;
+                            }
+                        }
+                        free(res.args);
+                        break;
+                    
+                    case PS_ERR_SYNTAX:
+                        fprintf(stderr, "Syntax error at %s:%u\n", state->path, state->line);
+                        free(buffer);
+                        return 1;
+                    
+                    case PS_ERR_BAD_ARITH:
+                        fprintf(stderr, "Bad expression at %s:%u\n", state->path, state->line);
+                        free(buffer);
+                        return 1;
+                    }
+                }
+                else
+                {
+                    fprintf(stderr, "%s:%u: No section declared\n", state->path, state->line);
+                    free(buffer);
+                    return 1;
+                }
+            }
+            else if(!strcmp(opcode, ".short"))
+            {
+                if(state->section)
+                {
+                    ParserResult res = parse_args(state->global_names, state->global_values, state->num_globals, args);
+                    switch(res.status)
+                    {
+                    case PS_OK:
+                        for(unsigned i = 0; i < res.num_args; i++)
+                        {
+                            if(res.args[i].label)
+                            {
+                                if(!AlSection_set_reloc(state->section, state->section->len, res.args[i].label, AL_RELOC_SHORT))
+                                {
+                                    fprintf(stderr, "%s:%u: Too many relocations in section\n", state->path, state->line);;
+                                    return 1;
+                                }
+                                free(res.args[i].label);
+                            }
+                            if(!AlSection_append(state->section, res.args[i].offset & 0xff) ||
+                                !AlSection_append(state->section, res.args[i].offset >> 8))
+                            {
+                                fprintf(stderr, "%s:%u: Section is too long\n", state->path, state->line);
+                                return 1;
+                            }
+                        }
+                        free(res.args);
+                        break;
+                    
+                    case PS_ERR_SYNTAX:
+                        fprintf(stderr, "Syntax error at %s:%u\n", state->path, state->line);
+                        free(buffer);
+                        return 1;
+                    
+                    case PS_ERR_BAD_ARITH:
+                        fprintf(stderr, "Bad expression at %s:%u\n", state->path, state->line);
+                        free(buffer);
+                        return 1;
+                    }
+                }
+                else
+                {
+                    fprintf(stderr, "%s:%u: No section declared\n", state->path, state->line);
+                    free(buffer);
+                    return 1;
+                }
+            }
+            else
+            {
+                fprintf(stderr, "%s:%u: Unknown directive %s\n", state->path, state->line, opcode);
+                free(buffer);
+                return 1;
             }
         }
     }

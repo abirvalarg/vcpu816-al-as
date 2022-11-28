@@ -4,6 +4,8 @@
 #include <malloc.h>
 #include "misc.h"
 
+static const u16 INIT_SECTION_CAPACITY = 64;
+
 void AlObj_cleanup(AlObj *self)
 {
     for(unsigned sec_id = 0; sec_id < self->num_sections; sec_id++)
@@ -13,11 +15,13 @@ void AlObj_cleanup(AlObj *self)
 
         for(unsigned sym_id = 0; sym_id < sec->num_sym; sym_id++)
             free(sec->symbols[sym_id].name);
-        free(sec->symbols);
+        if(sec->symbols)
+            free(sec->symbols);
 
         for(unsigned reloc_id = 0; reloc_id < sec->num_reloc; reloc_id++)
             free(sec->reloc[reloc_id].symbol);
-        free(sec->reloc);
+        if(sec->reloc)
+            free(sec->reloc);
 
         free(sec);
     }
@@ -102,4 +106,54 @@ AlSection *AlObj_add_section(AlObj *self, const char *name)
     strcpy(self->sections[self->num_sections].name, name);
     self->num_sections++;
     return section;
+}
+
+u8 AlSection_append(AlSection *section, u8 value)
+{
+    if(section->len == section->capacity)
+    {
+        if(section->capacity == 0xffff)
+            return 0;
+        u16 new_cap = section->capacity ? section->capacity * 2 : INIT_SECTION_CAPACITY;
+        if(new_cap < section->capacity)
+            new_cap = 0xffff;
+        u8 *new_data = malloc(new_cap);
+        if(!new_data)
+            out_of_memory();
+        memcpy(new_data, section->data, section->len);
+        if(section->data)
+            free(section->data);
+        section->data = new_data;
+        section->capacity = new_cap;
+    }
+    section->data[section->len++] = value;
+    return 1;
+}
+
+u8 AlSection_set_reloc(AlSection *section, u16 position, const char *symbol, AlRelocKind kind)
+{
+    if(section->num_reloc == section->reloc_capacity)
+    {
+        if(section->reloc_capacity == 0xffff)
+            return 0;
+        u16 new_cap = section->reloc_capacity ? section->reloc_capacity * 2 : 1;
+        if(new_cap < section->reloc_capacity)
+            new_cap = 0xffff;
+        AlRelocEntry *new_reloc = malloc(sizeof(AlRelocEntry) * new_cap);
+        if(!new_reloc)
+            out_of_memory();
+        memcpy(new_reloc, section->reloc, section->len);
+        if(section->reloc)
+            free(section->reloc);
+        section->reloc = new_reloc;
+        section->reloc_capacity = new_cap;
+    }
+    char *sym_buf = malloc(strlen(symbol) + 1);
+    strcpy(sym_buf, symbol);
+    section->reloc[section->num_reloc++] = (AlRelocEntry){
+        .kind = kind,
+        .offset = position,
+        .symbol = sym_buf
+    };
+    return 1;
 }

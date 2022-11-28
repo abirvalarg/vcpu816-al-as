@@ -36,7 +36,8 @@ typedef struct AlSection
 
 u8 AlSection_symbol_exists(AlSection *section, const char *name);
 u8 AlSection_set_label(AlSection *section, const char *name);
-u8 AlSection_set_symbol_val(AlSection *section, const char *name, u16 value);
+u8 AlSection_append(AlSection *section, u8 value);
+u8 AlSection_set_reloc(AlSection *section, u16 position, const char *symbol, AlRelocKind kind);
 
 typedef struct AlSectionEntry
 {
