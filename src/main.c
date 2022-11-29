@@ -112,7 +112,6 @@ static int process_line(AsmState *state, const char *line)
                         for(unsigned arg = 0; arg < res.num_args; arg++)
                             if(res.args[arg].label)
                                 free(res.args[arg].label);
-                        free(buffer);
                         exit_code = 1;
                     }
                     free(res.args);
