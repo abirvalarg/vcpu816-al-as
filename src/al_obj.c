@@ -143,7 +143,7 @@ u8 AlSection_set_reloc(AlSection *section, u16 position, const char *symbol, AlR
         AlRelocEntry *new_reloc = malloc(sizeof(AlRelocEntry) * new_cap);
         if(!new_reloc)
             out_of_memory();
-        memcpy(new_reloc, section->reloc, section->len);
+        memcpy(new_reloc, section->reloc, sizeof(AlRelocEntry) * section->num_reloc);
         if(section->reloc)
             free(section->reloc);
         section->reloc = new_reloc;

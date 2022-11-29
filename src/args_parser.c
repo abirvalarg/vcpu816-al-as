@@ -49,6 +49,14 @@ ParserResult parse_args(
     const char *src
 )
 {
+    if(!src)
+    {
+        return (ParserResult){
+            .args = 0,
+            .num_args = 0,
+            .status = PS_OK
+        };
+    }
     Arg *args = malloc(sizeof(Arg));
     unsigned args_cap = 1;
     unsigned num_args = 0;

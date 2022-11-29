@@ -6,6 +6,7 @@
 #include "al_obj.h"
 #include "args_parser.h"
 #include "misc.h"
+#include "instr.h"
 
 typedef enum NextToken
 {
@@ -13,18 +14,6 @@ typedef enum NextToken
     NT_INPUT,
     NT_OUTPUT
 } NextToken;
-
-typedef struct AsmState
-{
-    AlObj obj;
-    AlSection *section;
-    const char *path;
-    char **global_names;
-    u16 *global_values;
-    unsigned num_globals;
-    unsigned globals_cap;
-    unsigned line;
-} AsmState;
 
 static const char *const DEFAULT_OUTPUT = "vcpu816-al.o";
 static const unsigned INIT_BUF_CAPACITY = 64;
@@ -41,6 +30,7 @@ static int process_line(AsmState *state, const char *line)
         out_of_memory();
     size_t buffer_pos = 0;
     size_t last_char = 0;
+    int exit_code = 0;
 
     char ch;
     while((ch = *(line++)))
@@ -104,34 +94,37 @@ static int process_line(AsmState *state, const char *line)
                 case PS_OK:
                     if(res.num_args == 2 && res.args[0].label && res.args[0].offset == 0 && res.args[1].label == 0)
                     {
-                        set_global(state, res.args[0].label, res.args[1].offset);
+                        if(is_reg(res.args[0].label))
+                        {
+                            fprintf(stderr, "Invalid use of register at %s:%u\n", state->path, state->line);
+                            exit_code = 1;
+                        }
+                        else
+                            set_global(state, res.args[0].label, res.args[1].offset);
                         free(res.args[0].label);
-                        free(res.args);
                     }
                     else
                     {
                         if(res.num_args == 2 && !res.args[0].label)
-                            fprintf(stderr, "Error at %s:%u: syntax error or symbol is already defined\n", state->path, state->line);
+                            fprintf(stderr, "%s:%u: syntax error or symbol is already defined\n", state->path, state->line);
                         else
                             fprintf(stderr, "Syntax error at %s:%u\n", state->path, state->line);
                         for(unsigned arg = 0; arg < res.num_args; arg++)
                             if(res.args[arg].label)
                                 free(res.args[arg].label);
-                        free(res.args);
                         free(buffer);
-                        return 1;
+                        exit_code = 1;
                     }
+                    free(res.args);
                     break;
                 
                 case PS_ERR_SYNTAX:
                     fprintf(stderr, "Syntax error at %s:%u\n", state->path, state->line);
-                    free(buffer);
-                    return 1;
+                    exit_code = 1;
                 
                 case PS_ERR_BAD_ARITH:
                     fprintf(stderr, "Bad expression at %s:%u\n", state->path, state->line);
-                    free(buffer);
-                    return 1;
+                    exit_code = 1;
                 }
             }
             else if(!strcmp(opcode, ".byte"))
@@ -146,10 +139,15 @@ static int process_line(AsmState *state, const char *line)
                         {
                             if(res.args[i].label)
                             {
+                                if(is_reg(res.args[1].label))
+                                {
+                                    fprintf(stderr, "Invalid use of register at %s:%u\n", state->path, state->line);
+                                    exit_code = 1;
+                                }
                                 if(!AlSection_set_reloc(state->section, state->section->len, res.args[i].label, AL_RELOC_BYTE))
                                 {
                                     fprintf(stderr, "%s:%u: Too many relocations in section\n", state->path, state->line);;
-                                    return 1;
+                                    exit_code = 1;
                                 }
                                 free(res.args[i].label);
                             }
@@ -234,10 +232,33 @@ static int process_line(AsmState *state, const char *line)
                 return 1;
             }
         }
+        else
+        {
+            ParserResult args_res = parse_args(state->global_names, state->global_values, state->num_globals, args);
+            switch(args_res.status)
+            {
+            case PS_OK:
+                exit_code = parse_instr(state, opcode, args_res.args, args_res.num_args);
+                for(unsigned i = 0; i < args_res.num_args; i++)
+                    if(args_res.args[i].label)
+                        free(args_res.args[i].label);
+                if(args_res.args)
+                    free(args_res.args);
+                break;
+            
+            case PS_ERR_SYNTAX:
+                fprintf(stderr, "%s:%u: syntax error in instruction arguments\n", state->path, state->line);
+                break;
+            
+            case PS_ERR_BAD_ARITH:
+                fprintf(stderr, "%s:%u: bad label arithmetics in instruction arguments\n", state->path, state->line);
+                break;
+            }
+        }
     }
 
     free(buffer);
-    return 0;
+    return exit_code;
 }
 
 static int process_file(AsmState *state, const char *path)
