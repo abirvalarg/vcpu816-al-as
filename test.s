@@ -16,4 +16,5 @@ start:
 
 .section    text/halt   
 halt:
-    jmp halt      ; 0x04 0xfd 0xff
+.loop:
+    jmp .loop       ; 0x04 0xfd 0xff

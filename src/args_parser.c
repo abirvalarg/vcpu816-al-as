@@ -713,10 +713,10 @@ static ParserStatus next_token(ParserState *state)
                 append_token_from_src(state);
         }
     }
-    else if(isalpha(state->src[0]))
+    else if(isalpha(state->src[0]) || state->src[0] == '_' || state->src[0] == '.')
     {
         state->token_kind = TOK_IDENT;
-        while(isalnum(state->src[0]) || state->src[0] == '_')
+        while(isalnum(state->src[0]) || state->src[0] == '_' || state->src[0] == '.')
             append_token_from_src(state);
     }
     else
