@@ -416,6 +416,7 @@ int main(int argc, const char *const *argv)
             free(output);
             output = malloc(strlen(argv[i]) + 1);
             strcpy(output, argv[i]);
+            next_token = NT_FLAG;
             break;
         }
     }

@@ -9,7 +9,7 @@
             "type": "gdb",
             "request": "launch",
             "target": "./target/debug/vcpu816-al-as",
-            "arguments": "test.s",
+            "arguments": "-o test.o test.s",
             "cwd": "${workspaceRoot}",
             "valuesFormatting": "parseText"
         }
